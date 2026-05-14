@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"keyval/process"
 	"net/http"
 	"strings"
 )
@@ -36,12 +35,13 @@ func main() {
 			err := checkArgs(segments, 3)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 
 			key, val := segments[1], segments[2]
 
-			fmt.Printf("Setting %s to %s\n", key, val)
-			process.Set(key, val)
+			// fmt.Printf("Setting %s to %s\n", key, val)
+			Set(key, val)
 
 			return
 
@@ -50,11 +50,18 @@ func main() {
 			err := checkArgs(segments, 2)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
 			}
 
 			key := segments[1]
+			value, err := Get(key)
 
-			fmt.Printf("Getting %s", key)
+			if errors.Is(err, ErrNotFound) {
+				http.Error(w, fmt.Sprintf("[ERR] %s", ErrNotFound.Error()), http.StatusNotFound)
+				return
+			}
+
+			fmt.Fprintf(w, "[OK] %s", value)
 
 			return
 
