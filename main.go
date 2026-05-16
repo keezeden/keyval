@@ -1,30 +1,55 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
+	"log"
+	"net"
 	"strings"
 )
 
 func main() {
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		bodyBytes, err := io.ReadAll(r.Body)
+	ln, err := net.Listen("tcp", ":8080")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer ln.Close()
+
+	store := NewStore()
+	err = store.Load()
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println("TCP server listening on port 8080...")
+
+	for {
+		conn, err := ln.Accept()
 		if err != nil {
-			http.Error(w, "[ERR] Failed to read body", http.StatusInternalServerError)
-			return
+			log.Println("Accept error:", err)
+			continue
 		}
 
-		defer r.Body.Close()
+		go handleConnection(conn, store)
+	}
+}
 
-		request := string(bodyBytes)
+func handleConnection(connection net.Conn, store *Store) {
+	defer connection.Close()
+
+	scanner := bufio.NewScanner(connection)
+
+	for scanner.Scan() {
+		request := string(scanner.Text())
 
 		segments := strings.Split(request, " ")
 
 		if len(segments) == 0 {
-			http.Error(w, "[ERR] Request must contain a command", http.StatusInternalServerError)
-			return
+			connection.Write([]byte("[ERR] Request must contain a command\n"))
+			continue
 		}
 
 		command := segments[0]
@@ -34,75 +59,73 @@ func main() {
 			// SET key val
 			err := checkArgs(segments, 3)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
+				connection.Write([]byte(err.Error()))
+				continue
 			}
 
 			key, val := segments[1], segments[2]
 
-			// fmt.Printf("Setting %s to %s\n", key, val)
-			Set(key, val)
+			store.Set(key, val)
 
-			return
+			connection.Write([]byte("[OK]\n"))
 
-		case "GET":
-			// GET key
-			err := checkArgs(segments, 2)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			key := segments[1]
-			value, err := Get(key)
-
-			if errors.Is(err, ErrNotFound) {
-				http.Error(w, fmt.Sprintf("[ERR] %s", ErrNotFound.Error()), http.StatusNotFound)
-				return
-			}
-
-			fmt.Fprintf(w, "[OK] %s", value)
-
-			return
+			continue
 
 		case "DEL":
 			// DEL key
 			err := checkArgs(segments, 2)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
 			}
 
 			key := segments[1]
 
 			fmt.Printf("Deleting %s", key)
 
-			return
+			continue
+		case "GET":
+			// GET key
+			err := checkArgs(segments, 2)
+			if err != nil {
+				connection.Write([]byte(err.Error()))
+				continue
+			}
+
+			key := segments[1]
+			entry, err := store.Get(key)
+
+			if errors.Is(err, ErrNotFound) {
+				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
+				continue
+			}
+
+			connection.Write([]byte(fmt.Sprintf("[OK] %s\n", entry)))
+
+			continue
 
 		case "EXISTS":
 			//EXISTS key
 			err := checkArgs(segments, 2)
 			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
 			}
 
 			key := segments[1]
 
-			fmt.Printf("Checking %s", key)
+			fmt.Printf("Checking %s\n", key)
 
-			return
+			continue
 
 		case "KEYS":
 			// KEYS
 			// no check needed
 
-			return
+			continue
 		default:
-			http.Error(w, "[ERR] Command not found", http.StatusInternalServerError)
-			return
+			connection.Write([]byte(fmt.Sprintf("[ERR] Command %s\n", ErrNotFound.Error())))
+			continue
 		}
-	})
-
-	http.ListenAndServe(":8080", nil)
+	}
 }
 
 func checkArgs(segments []string, count int) error {
