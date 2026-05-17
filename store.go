@@ -39,13 +39,13 @@ func (store *Store) Load() error {
 	return nil
 }
 
-func (store *Store) Set(key string, value string) error {
+func (store *Store) Set(key string, value string, ttl int) error {
 	event := Event{
 		Type:  "SET",
 		Key:   key,
 		Value: value,
 		Time:  time.Now(),
-		TTL:   300,
+		TTL:   ttl,
 	}
 
 	err := store.Log.Append(event)
@@ -72,6 +72,21 @@ func (store *Store) Delete(key string) error {
 	return nil
 }
 
+func (store *Store) Expire(key string) error {
+	event := Event{
+		Type: "EXP",
+		Key:  key,
+	}
+
+	err := store.Log.Append(event)
+	if err != nil {
+		return err
+	}
+
+	delete(store.Data, key)
+	return nil
+}
+
 func (store *Store) Get(key string) (string, error) {
 	event, found := store.Data[key]
 
@@ -79,10 +94,25 @@ func (store *Store) Get(key string) (string, error) {
 		return "", ErrNotFound
 	}
 
+	if store.isExpired(event) {
+		store.Expire(event.Key)
+		return "", ErrNotFound
+	}
+
 	return event.Value, nil
 }
 
-func (store *Store) List() []string {
+func (store *Store) ListKeys() []string {
+	var values []string
+
+	for _, event := range store.Data {
+		values = append(values, event.Key)
+	}
+
+	return values
+}
+
+func (store *Store) ListValues() []string {
 	var values []string
 
 	for _, event := range store.Data {
@@ -90,4 +120,17 @@ func (store *Store) List() []string {
 	}
 
 	return values
+}
+
+func (store *Store) isExpired(event Event) bool {
+	now := time.Now()
+
+	difference := now.Sub(event.Time)
+	seconds := difference.Seconds()
+
+	if seconds < float64(event.TTL) {
+		return false
+	}
+
+	return true
 }

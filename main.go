@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -29,7 +30,7 @@ func main() {
 	for {
 		conn, err := ln.Accept()
 		if err != nil {
-			log.Println("Accept error:", err)
+			log.Println("[ERR] Accepting Connection:", err)
 			continue
 		}
 
@@ -56,7 +57,6 @@ func handleConnection(connection net.Conn, store *Store) {
 
 		switch command {
 		case "SET":
-			// SET key val
 			err := checkArgs(segments, 3)
 			if err != nil {
 				connection.Write([]byte(err.Error()))
@@ -65,26 +65,34 @@ func handleConnection(connection net.Conn, store *Store) {
 
 			key, val := segments[1], segments[2]
 
-			store.Set(key, val)
+			if len(segments) > 3 {
+				ttl, err := strconv.Atoi(segments[3])
+				if err != nil {
+					connection.Write([]byte("[ERR] TTL must be an int.\n"))
+				}
+				store.Set(key, val, ttl)
+			} else {
+				store.Set(key, val, 300)
+			}
 
 			connection.Write([]byte("[OK]\n"))
 
 			continue
 
 		case "DEL":
-			// DEL key
 			err := checkArgs(segments, 2)
 			if err != nil {
-				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
+				connection.Write([]byte(err.Error()))
 			}
 
 			key := segments[1]
 
-			fmt.Printf("Deleting %s", key)
+			store.Delete(key)
+
+			connection.Write([]byte("[OK]\n"))
 
 			continue
 		case "GET":
-			// GET key
 			err := checkArgs(segments, 2)
 			if err != nil {
 				connection.Write([]byte(err.Error()))
@@ -103,22 +111,9 @@ func handleConnection(connection net.Conn, store *Store) {
 
 			continue
 
-		case "EXISTS":
-			//EXISTS key
-			err := checkArgs(segments, 2)
-			if err != nil {
-				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
-			}
-
-			key := segments[1]
-
-			fmt.Printf("Checking %s\n", key)
-
-			continue
-
 		case "KEYS":
-			// KEYS
-			// no check needed
+			keys := store.ListKeys()
+			connection.Write([]byte(fmt.Sprintf("[OK] %s\n", strings.Join(keys, ", "))))
 
 			continue
 		default:

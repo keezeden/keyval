@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 )
 
@@ -32,7 +31,7 @@ func (log *Log) Append(event Event) error {
 	}
 
 	defer file.Close()
-	fmt.Printf("Key: %s, Value: %s\n", event.Key, event.Value)
+
 	bytes, err := json.Marshal(event)
 	if err != nil {
 		return err
