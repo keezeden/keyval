@@ -1,7 +1,9 @@
 # Klefki
 
-<img src="./.github/klefki.png" width="200" height="200" align="center">
-Klefki is a small append-only key-value store that communicates over TCP/IP.
+<div align="center">
+    <img src="./.github/klefki.png" width="200" height="200" align="center">
+    <p>Klefki is a small append-only key-value store that communicates over TCP/IP.</p>
+</div>
 
 ## Why
 
