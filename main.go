@@ -25,7 +25,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	fmt.Println("TCP server listening on port 8080...")
+	fmt.Println("Klefki listening on port 8080...")
 
 	for {
 		conn, err := ln.Accept()

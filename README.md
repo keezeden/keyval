@@ -36,7 +36,17 @@ KEYS
 > [OK]
 ```
 
-## Commands
+## Setup and Usage
+
+To use Klefki, start the main file and connect over TCP
+
+```sh
+go run main.go
+
+ncat localhost 8080
+```
+
+Then run any of the following commands
 
 ```text
 SET <key> <val> <ttl?=300>
