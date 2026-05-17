@@ -87,19 +87,19 @@ func (store *Store) Expire(key string) error {
 	return nil
 }
 
-func (store *Store) Get(key string) (string, error) {
+func (store *Store) Get(key string) (Event, error) {
 	event, found := store.Data[key]
 
 	if !found {
-		return "", ErrNotFound
+		return Event{}, ErrNotFound
 	}
 
 	if store.isExpired(event) {
 		store.Expire(event.Key)
-		return "", ErrNotFound
+		return Event{}, ErrNotFound
 	}
 
-	return event.Value, nil
+	return event, nil
 }
 
 func (store *Store) ListKeys() []string {

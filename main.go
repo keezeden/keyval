@@ -100,14 +100,33 @@ func handleConnection(connection net.Conn, store *Store) {
 			}
 
 			key := segments[1]
-			entry, err := store.Get(key)
+			event, err := store.Get(key)
 
 			if errors.Is(err, ErrNotFound) {
 				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
 				continue
 			}
 
-			connection.Write([]byte(fmt.Sprintf("[OK] %s\n", entry)))
+			connection.Write([]byte(fmt.Sprintf("[OK] %s\n", event.Value)))
+
+			continue
+
+		case "TTL":
+			err := checkArgs(segments, 2)
+			if err != nil {
+				connection.Write([]byte(err.Error()))
+				continue
+			}
+
+			key := segments[1]
+			event, err := store.Get(key)
+
+			if errors.Is(err, ErrNotFound) {
+				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
+				continue
+			}
+
+			connection.Write([]byte(fmt.Sprintf("[OK] %d\n", event.TTL)))
 
 			continue
 
