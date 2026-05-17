@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"keyval/kv"
 	"log"
 	"net"
 	"strconv"
@@ -18,7 +19,7 @@ func main() {
 
 	defer ln.Close()
 
-	store := NewStore()
+	store := kv.NewStore()
 	err = store.Load()
 
 	if err != nil {
@@ -38,7 +39,7 @@ func main() {
 	}
 }
 
-func handleConnection(connection net.Conn, store *Store) {
+func handleConnection(connection net.Conn, store *kv.Store) {
 	defer connection.Close()
 
 	scanner := bufio.NewScanner(connection)
@@ -102,8 +103,8 @@ func handleConnection(connection net.Conn, store *Store) {
 			key := segments[1]
 			event, err := store.Get(key)
 
-			if errors.Is(err, ErrNotFound) {
-				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
+			if errors.Is(err, kv.ErrNotFound) {
+				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", kv.ErrNotFound.Error())))
 				continue
 			}
 
@@ -121,8 +122,8 @@ func handleConnection(connection net.Conn, store *Store) {
 			key := segments[1]
 			event, err := store.Get(key)
 
-			if errors.Is(err, ErrNotFound) {
-				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", ErrNotFound.Error())))
+			if errors.Is(err, kv.ErrNotFound) {
+				connection.Write([]byte(fmt.Sprintf("[ERR] %s\n", kv.ErrNotFound.Error())))
 				continue
 			}
 
@@ -136,7 +137,7 @@ func handleConnection(connection net.Conn, store *Store) {
 
 			continue
 		default:
-			connection.Write([]byte(fmt.Sprintf("[ERR] Command %s\n", ErrNotFound.Error())))
+			connection.Write([]byte(fmt.Sprintf("[ERR] Command %s\n", kv.ErrNotFound.Error())))
 			continue
 		}
 	}
