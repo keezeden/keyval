@@ -1,6 +1,7 @@
 package kv
 
 import (
+	"sync"
 	"time"
 )
 
@@ -13,6 +14,7 @@ type Event struct {
 }
 
 type Store struct {
+	mu   sync.RWMutex
 	Log  Log
 	Data map[string]Event
 }
@@ -48,11 +50,27 @@ func (store *Store) Set(key string, value string, ttl int) error {
 		TTL:   ttl,
 	}
 
-	err := store.Log.Append(event)
-	if err != nil {
-		return err
-	}
+	errChannel := make(chan error, 1)
 
+	go func() {
+		err := store.Log.Append(event)
+		if err != nil {
+			errChannel <- err
+		}
+		close(errChannel)
+	}()
+
+	go func() {
+		err := <-errChannel
+		if err != nil {
+			store.mu.Lock()
+			defer store.mu.Unlock()
+			delete(store.Data, key)
+		}
+	}()
+
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	store.Data[key] = event
 	return nil
 }
@@ -63,11 +81,10 @@ func (store *Store) Delete(key string) error {
 		Key:  key,
 	}
 
-	err := store.Log.Append(event)
-	if err != nil {
-		return err
-	}
+	go store.Log.Append(event)
 
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	delete(store.Data, key)
 	return nil
 }
@@ -78,16 +95,17 @@ func (store *Store) Expire(key string) error {
 		Key:  key,
 	}
 
-	err := store.Log.Append(event)
-	if err != nil {
-		return err
-	}
+	go store.Log.Append(event)
 
+	store.mu.Lock()
+	defer store.mu.Unlock()
 	delete(store.Data, key)
 	return nil
 }
 
 func (store *Store) Get(key string) (Event, error) {
+	store.mu.RLock()
+	defer store.mu.RUnlock()
 	event, found := store.Data[key]
 
 	if !found {
@@ -105,6 +123,8 @@ func (store *Store) Get(key string) (Event, error) {
 func (store *Store) ListKeys() []string {
 	var values []string
 
+	store.mu.RLock()
+	defer store.mu.RUnlock()
 	for _, event := range store.Data {
 		values = append(values, event.Key)
 	}
@@ -115,6 +135,8 @@ func (store *Store) ListKeys() []string {
 func (store *Store) ListValues() []string {
 	var values []string
 
+	store.mu.RLock()
+	defer store.mu.RUnlock()
 	for _, event := range store.Data {
 		values = append(values, event.Value)
 	}
